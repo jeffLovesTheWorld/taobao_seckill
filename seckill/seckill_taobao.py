@@ -19,8 +19,7 @@ from utils.utils import notify_user
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
-
+from selenium.webdriver.common.by import By
 
 # 抢购失败最大次数
 max_retry_count = 30
@@ -46,7 +45,7 @@ class ChromeDrive:
     def __init__(self, chrome_path=default_chrome_path(), seckill_time=None, password=None):
         self.chrome_path = chrome_path
         self.seckill_time = seckill_time
-        self.seckill_time_obj = datetime.strptime(self.seckill_time, '%Y-%m-%d %H:%M:%S')
+        self.seckill_time_obj = datetime.strptime(self.seckill_time, '%Y-%m-%d %H:%M:%S.%f')
         self.password = password
 
     def start_driver(self):
@@ -95,13 +94,16 @@ class ChromeDrive:
         while True:
             self.driver.get(login_url)
             try:
-                if self.driver.find_element_by_link_text("亲，请登录"):
+                #if self.driver.find_element_by_link_text("亲，请登录"):   
+                if self.driver.find_element(By.LINK_TEXT, "亲，请登录"):
                     print("没登录，开始点击登录按钮...")
-                    self.driver.find_element_by_link_text("亲，请登录").click()
+                    #self.driver.find_element_by_link_text("亲，请登录").click()
+                    self.driver.find_element(By.LINK_TEXT, "亲，请登录").click()
                     print("请在30s内扫码登陆!!")
                     sleep(30)
-                    if self.driver.find_element_by_xpath('//*[@id="J_SiteNavMytaobao"]/div[1]/a/span'):
-                        print("登陆成功")
+                    #if self.driver.find_element_by_xpath('//*[@id="J_SiteNavMytaobao"]/div[1]/a/span'):
+                    if self.driver.find_element(By.XPATH, '//*[@id="J_SiteNavMytaobao"]/div[1]/a/span'):
+                        print(f"当前时间{str(datetime.now())}: 登陆成功")
                         break
                     else:
                         print("登陆失败, 刷新重试, 请尽快登陆!!!")
@@ -121,7 +123,7 @@ class ChromeDrive:
                 sleep(60)
             else:
                 self.get_cookie()
-                print("抢购时间点将近，停止自动刷新，准备进入抢购阶段...")
+                print(f"当前时间{str(datetime.now())}: 抢购时间点将近，停止自动刷新，准备进入抢购阶段...")
                 break
 
 
@@ -129,10 +131,26 @@ class ChromeDrive:
         self.keep_wait()
         self.driver.get("https://cart.taobao.com/cart.htm")
         sleep(1)
-
-        if self.driver.find_element_by_id("J_SelectAll1"):
-            self.driver.find_element_by_id("J_SelectAll1").click()
+        
+        '''
+        if self.driver.find_element(By.ID,"J_SelectAll1"):
+            self.driver.find_element(By.ID,"J_SelectAll1").click()
             print("已经选中全部商品！！！")
+        '''
+        try:  
+            # 假设全选按钮有一个特定的父元素，我们可以使用 XPath 来定位它  
+            xpath = '//div[@class="cartOperation--JUDK2BYF"]/label[contains(@class, "ant-checkbox-wrapper")]/span[contains(@class, "ant-checkbox")]/input[@class="ant-checkbox-input"]'  
+            '''
+            WebDriverWait(self.driver, 10).until(  
+                EC.element_to_be_clickable((By.XPATH, xpath))  
+            )
+            '''  
+            # 点击全选按钮  
+            select_all_checkbox = self.driver.find_element(By.XPATH, xpath)  
+            select_all_checkbox.click()  
+            print(f"当前时间{str(datetime.now())}: 已经选中全部商品！！！")
+        except Exception as e:  
+            print("未找到全选按钮或无法点击:", e)
 
         submit_succ = False
         retry_count = 0
@@ -140,7 +158,7 @@ class ChromeDrive:
         while True:
             now = datetime.now()
             if now >= self.seckill_time_obj:
-                print(f"开始抢购, 尝试次数： {str(retry_count)}")
+                print(f"当前时间{str(datetime.now())}: 开始抢购, 尝试次数： {str(retry_count)}")
                 if submit_succ:
                     print("订单已经提交成功，无需继续抢购...")
                     break
@@ -151,33 +169,52 @@ class ChromeDrive:
                 retry_count += 1
 
                 try:
+                    xpath = '//div[@class="btn--QDjHtErD" and text()="结算"]'
+                    elements = self.driver.find_elements(By.XPATH, xpath)
+                    print(f"当前时间{str(datetime.now())}: 查找结算按钮结束...")
+                    if not elements:
+                        xpath = '//div[@class="btn--QDjHtErD" and text()="领券结算"]'
+                        elements = self.driver.find_elements(By.XPATH, xpath)
+                        print(f"当前时间{str(datetime.now())}: 查找领券结算按钮结束...")
 
-                    if self.driver.find_element_by_id("J_Go"):
-                        self.driver.find_element_by_id("J_Go").click()
-                        print("已经点击结算按钮...")
+                    element = None
+                    if elements:
+                      element = elements[0]  # 获取第一个匹配的元素   
+                    else:
+                        print("未找到结算或者领券结算按钮")   
+                    if element:
+                        print(f"当前时间{str(datetime.now())}: 开始点击结算按钮...")
+                        element.click()
+                        print(f"当前时间{str(datetime.now())}: 已经点击结算按钮...")
                         click_submit_times = 0
                         while True:
                             try:
                                 if click_submit_times < 10:
-                                    self.driver.find_element_by_link_text('提交订单').click()
-                                    print("已经点击提交订单按钮")
-                                    submit_succ = True
-                                    break
-                                else:
-                                    print("提交订单失败...")
+                                    xpath = '//div[@class="btn--QDjHtErD  " and text()="提交订单"]'  
+                                    element = self.driver.find_element(By.XPATH, xpath)
+                                    print(f"当前时间{str(datetime.now())}: 查找提交订单按钮结束...")
+                                    if element:
+                                        print(f"当前时间{str(datetime.now())}: 开始点击提交订单按钮")
+                                        element.click()
+                                        print(f"当前时间{str(datetime.now())}: 已经点击提交订单按钮")
+                                        submit_succ = True
+                                        break
+                                    else:
+                                        print("提交订单失败...")
                             except Exception as e:
 
-                                print("没发现提交按钮, 页面未加载, 重试...")
+                                print(f"当前时间{str(datetime.now())}: 没发现提交按钮, 页面未加载, 重试...")
                                 click_submit_times = click_submit_times + 1
-                                sleep(0.1)
+                                sleep(0.01)
                 except Exception as e:
                     print(e)
                     print("临时写的脚本, 可能出了点问题!!!")
 
-            sleep(0.1)
+            sleep(0.01)
         if submit_succ:
             if self.password:
                 self.pay()
+        input("按回车键继续...")
 
 
     def pay(self):
